@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudCFO.ai — Banking & Payments Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf6', 100: '#dcfce8', 200: '#bbf7d1',
+                            300: '#86efad', 400: '#4ade80', 500: '#22c55e',
+                            600: '#16a34a', 700: '#15803d', 800: '#166534',
+                            900: '#14532d', 950: '#052e16',
+                        },
+                        gold: { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' },
+                        surface: { 50: '#fafbfc', 100: '#f4f6f8', 200: '#e8ecf0' },
+                    },
+                    fontFamily: {
+                        heading: ['Georgia', 'serif'],
+                        body: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        *, *::before, *::after { font-family: 'Inter', system-ui, sans-serif; }
+        h1, h2, h3, .font-heading { font-family: 'Georgia', serif; }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            border: 1px solid #e8ecf0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px -12px rgba(0,0,0,0.08);
+            border-color: #bbf7d1;
+        }
+        .card-static {
+            background: white;
+            border-radius: 16px;
+            border: 1px solid #e8ecf0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+
+        .noise-bg { position: relative; overflow: hidden; }
+        .noise-bg::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            pointer-events: none;
+            border-radius: 16px;
+        }
+        .noise-bg > * { position: relative; z-index: 1; }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .tree-line { border-left: 2px solid #e5e7eb; margin-left: 12px; padding-left: 16px; }
+
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-8px); } }
+        @keyframes pulse-glow { 0%, 100% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.05); } }
+        @keyframes slide-in-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse-soft { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+        .float { animation: float 4s ease-in-out infinite; }
+        .pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
+        .slide-up { animation: slide-in-up 0.6s ease-out both; }
+        .pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.7s ease, transform 0.7s ease;
+        }
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        select.custom-select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        .tab-btn { position: relative; cursor: pointer; }
+        .tab-btn.active { color: #15803d; font-weight: 600; }
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0; right: 0;
+            height: 2px;
+            background: #16a34a;
+            border-radius: 2px 2px 0 0;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body class="bg-[#f8f9fb] text-gray-900 antialiased min-h-screen">
+
+    <!-- ═══ HEADER ═══ -->
+    <header class="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100/80 transition-shadow" id="header">
+        <div class="max-w-[1600px] mx-auto px-6 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-xl font-extrabold text-gray-900 tracking-tight">CloudCFO<span class="text-blue-600">.ai</span></span>
+                </div>
+                <nav class="flex items-center gap-1">
+                    <a href="#" class="px-4 py-2 text-sm text-gray-500 hover:text-brand-700 hover:bg-brand-50 font-medium rounded-lg transition-all">Intelligence</a>
+                    <a href="#" class="px-4 py-2 text-sm text-gray-500 hover:text-brand-700 hover:bg-brand-50 font-medium rounded-lg transition-all">Accounting</a>
+                    <a href="#" class="px-4 py-2 text-sm bg-brand-50 text-brand-700 font-semibold rounded-lg transition-all">Banking & Payments</a>
+                    <a href="#" class="px-4 py-2 text-sm text-gray-500 hover:text-brand-700 hover:bg-brand-50 font-medium rounded-lg transition-all">ESG</a>
+                </nav>
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-sm">
+                        <svg class="w-4 h-4 pulse-soft" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        <span class="font-medium">5 items need review</span>
+                    </div>
+                    <button class="p-2 text-gray-500 hover:text-brand-700 hover:bg-brand-50 rounded-xl transition-all" title="Settings">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </button>
+                    <div class="w-9 h-9 bg-brand-100 rounded-full flex items-center justify-center">
+                        <span class="text-brand-700 font-semibold text-sm">A</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ═══ MAIN CONTENT ═══ -->
+    <main class="max-w-[1600px] mx-auto px-6 py-6 pt-24">
+
+        <!-- ═══ BREADCRUMB & ACTIONS ═══ -->
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <nav class="flex items-center gap-2 text-sm mb-2">
+                    <a href="#" class="text-gray-500 hover:text-brand-600 transition">Dashboard</a>
+                    <span class="text-gray-400">/</span>
+                    <span class="text-gray-800 font-medium">Banking & Payments</span>
+                </nav>
+                <div class="flex items-center gap-3">
+                    <h1 class="text-2xl font-heading font-bold text-gray-900">Banking & Payments</h1>
+                    <div class="flex items-center gap-1.5 px-2.5 py-1 bg-brand-100 text-brand-700 text-xs rounded-full font-medium">
+                        <span class="w-1.5 h-1.5 bg-brand-500 rounded-full"></span>
+                        Live sync
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <select class="custom-select px-4 py-2.5 pr-9 bg-white border-2 border-gray-200 rounded-xl text-sm text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 cursor-pointer">
+                    <option>This month</option>
+                    <option>This quarter</option>
+                    <option>This year</option>
+                    <option>Custom range</option>
+                </select>
+                <button class="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl text-gray-700 font-medium hover:border-brand-300 hover:text-brand-700 hover:bg-brand-50 transition-all text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Download Statement
+                </button>
+                <button class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-600 to-brand-700 text-white rounded-xl hover:from-brand-700 hover:to-brand-800 transition-all text-sm font-semibold shadow-md shadow-brand-600/25 hover:shadow-brand-600/40">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Initiate Payment
+                </button>
+            </div>
+        </div>
+
+        <!-- ═══ KPI CARDS ═══ -->
+        <div class="grid grid-cols-4 gap-5 mb-6 reveal">
+            <!-- Total Cash Position -->
+            <div class="card p-5 border-l-4 border-brand-500">
+                <div class="flex items-start justify-between mb-3">
+                    <div>
+                        <p class="text-sm text-gray-500 mb-1">Total Cash Position</p>
+                        <p class="text-2xl font-semibold text-gray-900">$284,750</p>
+                    </div>
+                    <button class="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5">
+                        <span class="flex items-center gap-0.5 text-sm font-medium text-brand-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>+12%</span>
+                        <span class="text-xs text-gray-500">vs last month</span>
+                    </div>
+                    <canvas id="cashSparkline" width="80" height="32"></canvas>
+                </div>
+            </div>
+            <!-- Accounts Receivable -->
+            <div class="card p-5 border-l-4 border-blue-500">
+                <div class="flex items-start justify-between mb-3">
+                    <div>
+                        <p class="text-sm text-gray-500 mb-1">Accounts Receivable</p>
+                        <p class="text-2xl font-semibold text-gray-900">$67,230</p>
+                    </div>
+                    <button class="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5">
+                        <span class="flex items-center gap-0.5 text-sm font-medium text-blue-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>+8%</span>
+                        <span class="text-xs text-gray-500">vs last month</span>
+                    </div>
+                    <canvas id="arSparkline" width="80" height="32"></canvas>
+                </div>
+            </div>
+            <!-- Accounts Payable -->
+            <div class="card p-5 border-l-4 border-rose-500">
+                <div class="flex items-start justify-between mb-3">
+                    <div>
+                        <p class="text-sm text-gray-500 mb-1">Accounts Payable</p>
+                        <p class="text-2xl font-semibold text-gray-900">$41,890</p>
+                    </div>
+                    <button class="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5">
+                        <span class="flex items-center gap-0.5 text-sm font-medium text-brand-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>-5%</span>
+                        <span class="text-xs text-gray-500">vs last month</span>
+                    </div>
+                    <canvas id="apSparkline" width="80" height="32"></canvas>
+                </div>
+            </div>
+            <!-- Cash Flow 30d -->
+            <div class="card p-5 border-l-4 border-emerald-500">
+                <div class="flex items-start justify-between mb-3">
+                    <div>
+                        <p class="text-sm text-gray-500 mb-1">Cash Flow (30d)</p>
+                        <p class="text-2xl font-semibold text-brand-600">+$18,340</p>
+                    </div>
+                    <button class="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5">
+                        <span class="flex items-center gap-0.5 text-sm font-medium text-brand-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>+23%</span>
+                        <span class="text-xs text-gray-500">vs last month</span>
+                    </div>
+                    <canvas id="cfSparkline" width="80" height="32"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ MAIN GRID: 8 + 4 ═══ -->
+        <div class="grid grid-cols-12 gap-6">
+
+            <!-- ═══ LEFT COLUMN ═══ -->
+            <div class="col-span-8 space-y-6">
+
+                <!-- ROW 1: Connected Accounts + Transaction Feed -->
+                <div class="grid grid-cols-2 gap-6 reveal">
+
+                    <!-- CONNECTED ACCOUNTS -->
+                    <div class="card-static">
+                        <div class="p-5 border-b border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <h2 class="font-heading font-bold text-gray-900">Connected Accounts</h2>
+                                    <span class="px-2 py-0.5 bg-brand-100 text-brand-700 text-xs font-semibold rounded-full">4</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button class="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4 max-h-80 overflow-y-auto">
+                            <!-- Chase -->
+                            <div class="mb-3">
+                                <button class="flex items-center gap-2 w-full text-left p-2 hover:bg-brand-50 rounded-xl transition-all" onclick="toggleAccount('chase')">
+                                    <svg class="w-4 h-4 text-gray-400 transform transition" id="chase-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></div>
+                                    <div class="flex-1 min-w-0">
+                                        <span class="font-medium text-gray-900 text-sm">Chase Business Checking</span>
+                                        <p class="text-xs text-gray-500">Checking</p>
+                                    </div>
+                                    <span class="flex items-center gap-1.5 px-2 py-0.5 bg-brand-100 text-brand-700 text-xs rounded-full font-medium"><span class="w-1.5 h-1.5 bg-brand-500 rounded-full"></span>Connected</span>
+                                </button>
+                                <div class="tree-line mt-2 space-y-1" id="chase-children">
+                                    <div class="flex items-center justify-between p-2 text-sm"><span class="text-gray-500">Balance</span><span class="font-semibold text-gray-900">$142,580.00</span></div>
+                                    <div class="flex items-center justify-between p-2 text-sm"><span class="text-gray-500">Available</span><span class="font-medium text-gray-700">$138,210.00</span></div>
+                                    <div class="flex items-center justify-between p-2 text-sm"><span class="text-gray-500">Last txn</span><span class="text-gray-600">Mar 1, 2026</span></div>
+                                </div>
+                            </div>
+                            <!-- Mercury -->
+                            <div class="mb-3">
+                                <button class="flex items-center gap-2 w-full text-left p-2 hover:bg-brand-50 rounded-xl transition-all" onclick="toggleAccount('mercury')">
+                                    <svg class="w-4 h-4 text-gray-400 transform transition" id="mercury-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></div>
+                                    <div class="flex-1 min-w-0">
+                                        <span class="font-medium text-gray-900 text-sm">Mercury Savings</span>
+                                        <p class="text-xs text-gray-500">Savings</p>
+                                    </div>
+                                    <span class="flex items-center gap-1.5 px-2 py-0.5 bg-brand-100 text-brand-700 text-xs rounded-full font-medium"><span class="w-1.5 h-1.5 bg-brand-500 rounded-full"></span>Connected</span>
+                                </button>
+                                <div class="tree-line mt-2 space-y-1 hidden" id="mercury-children">
+                                    <div class="flex items-center justify-between p-2 text-sm"><span class="text-gray-500">Balance</span><span class="font-semibold text-gray-900">$89,340.00</span></div>
+                                    <div class="flex items-center justify-between p-2 text-sm"><span class="text-gray-500">Last txn</span><span class="text-gray-600">Feb 28, 2026</span></div>
+                                </div>
+                            </div>
+                            <!-- Wells Fargo -->
+                            <div class="mb-3">
+                                <button class="flex items-center gap-2 w-full text-left p-2 hover:bg-brand-50 rounded-xl transition-all" onclick="toggleAccount('wells')">
+                                    <svg class="w-4 h-4 text-gray-400 transform transition" id="wells-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <div class="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></div>
+                                    <div class="flex-1 min-w-0">
+                                        <span class="font-medium text-gray-900 text-sm">Wells Fargo Credit Line</span>
+                                        <p class="text-xs text-gray-500">Credit</p>
+                                    </div>
+                                    <span class="flex items-center gap-1.5 px-2 py-0.5 bg-brand-100 text-brand-700 text-xs rounded-full font-medium"><span class="w-1.5 h-1.5 bg-brand-500 rounded-full"></span>Connected</span>
+                                </button>
+                                <div class="tree-line mt-2 space-y-1 hidden" id="wells-children">
+                                    <div class="flex items-center justify-between p-2 text-sm"><span class="text-gray-500">Balance</span><span class="font-semibold text-rose-600">-$12,450.00</span></div>
+                                    <div class="flex items-center justify-between p-2 text-sm"><span class="text-gray-500">Limit</span><span class="font-medium text-gray-700">$50,000.00</span></div>
+                                </div>
+                            </div>
+                            <!-- Stripe -->
+                            <div class="mb-3">
+                                <button class="flex items-center gap-2 w-full text-left p-2 hover:bg-brand-50 rounded-xl transition-all" onclick="toggleAccount('stripe')">
+                                    <svg class="w-4 h-4 text-gray-400 transform transition" id="stripe-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center"><span class="text-xs font-extrabold text-purple-600">S</span></div>
+                                    <div class="flex-1 min-w-0">
+                                        <span class="font-medium text-gray-900 text-sm">Stripe Payouts</span>
+                                        <p class="text-xs text-gray-500">Payment processor</p>
+                                    </div>
+                                    <span class="flex items-center gap-1.5 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium"><span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>Syncing</span>
+                                </button>
+                                <div class="tree-line mt-2 space-y-1 hidden" id="stripe-children">
+                                    <div class="flex items-center justify-between p-2 text-sm"><span class="text-gray-500">Balance</span><span class="font-semibold text-gray-900">$52,830.00</span></div>
+                                    <div class="flex items-center justify-between p-2 text-sm"><span class="text-gray-500">Status</span><span class="text-amber-600 font-medium">Sync in progress...</span></div>
+                                </div>
+                            </div>
+                            <button class="mt-2 w-full py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm text-gray-500 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50/50 transition-all flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                Connect New Account
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- TRANSACTION FEED -->
+                    <div class="card-static">
+                        <div class="p-5 border-b border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <h2 class="font-heading font-bold text-gray-900">Recent Transactions</h2>
+                                    <span class="px-2 py-0.5 bg-brand-100 text-brand-700 text-xs font-semibold rounded-full">8 new</span>
+                                </div>
+                                <a href="#" class="text-sm text-brand-600 hover:text-brand-700 font-semibold">View all</a>
+                            </div>
+                        </div>
+                        <div class="p-4 max-h-80 overflow-y-auto">
+                            <div class="space-y-1">
+                                <!-- Shopify -->
+                                <div class="flex items-center justify-between p-2.5 hover:bg-brand-50/30 rounded-xl transition-all">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg></div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">Shopify Revenue</p>
+                                            <p class="text-xs text-gray-500">Revenue · Chase</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-semibold text-brand-600">+$4,280.00</p>
+                                        <p class="text-xs text-gray-500">2 hours ago</p>
+                                    </div>
+                                </div>
+                                <!-- AWS -->
+                                <div class="flex items-center justify-between p-2.5 hover:bg-brand-50/30 rounded-xl transition-all">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">AWS Services</p>
+                                            <p class="text-xs text-gray-500">Software · Chase</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-semibold text-rose-600">-$1,847.50</p>
+                                        <p class="text-xs text-gray-500">5 hours ago</p>
+                                    </div>
+                                </div>
+                                <!-- WeWork -->
+                                <div class="flex items-center justify-between p-2.5 hover:bg-brand-50/30 rounded-xl transition-all bg-amber-50/30">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">WeWork Office</p>
+                                            <div class="flex items-center gap-1.5"><p class="text-xs text-gray-500">Rent · Chase</p><span class="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded-full font-medium">Pending</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-semibold text-rose-600">-$3,200.00</p>
+                                        <p class="text-xs text-gray-500">Yesterday</p>
+                                    </div>
+                                </div>
+                                <!-- Acme Corp -->
+                                <div class="flex items-center justify-between p-2.5 hover:bg-brand-50/30 rounded-xl transition-all">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg></div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">Acme Corp Payment</p>
+                                            <p class="text-xs text-gray-500">Invoice #1247 · Chase</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-semibold text-brand-600">+$12,500.00</p>
+                                        <p class="text-xs text-gray-500">Yesterday</p>
+                                    </div>
+                                </div>
+                                <!-- Gusto Payroll -->
+                                <div class="flex items-center justify-between p-2.5 hover:bg-brand-50/30 rounded-xl transition-all">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg></div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">Gusto Payroll</p>
+                                            <p class="text-xs text-gray-500">Payroll · Chase</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-semibold text-rose-600">-$28,450.00</p>
+                                        <p class="text-xs text-gray-500">Feb 28</p>
+                                    </div>
+                                </div>
+                                <!-- Google Ads DISCREPANCY -->
+                                <div class="flex items-center justify-between p-2.5 hover:bg-brand-50/30 rounded-xl transition-all bg-rose-50/40 border border-rose-100">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg></div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">Google Ads</p>
+                                            <div class="flex items-center gap-1.5"><p class="text-xs text-gray-500">Marketing · Chase</p><span class="px-1.5 py-0.5 bg-rose-100 text-rose-700 text-[10px] rounded-full font-medium">Discrepancy</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-semibold text-rose-600">-$2,340.00</p>
+                                        <p class="text-xs text-gray-500">Feb 27</p>
+                                    </div>
+                                </div>
+                                <!-- Stripe Fee -->
+                                <div class="flex items-center justify-between p-2.5 hover:bg-brand-50/30 rounded-xl transition-all">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/></svg></div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">Stripe Fee</p>
+                                            <p class="text-xs text-gray-500">Fees · Stripe</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-semibold text-rose-600">-$124.20</p>
+                                        <p class="text-xs text-gray-500">Feb 27</p>
+                                    </div>
+                                </div>
+                                <!-- Beta LLC -->
+                                <div class="flex items-center justify-between p-2.5 hover:bg-brand-50/30 rounded-xl transition-all">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg></div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">Beta LLC Payment</p>
+                                            <div class="flex items-center gap-1.5"><p class="text-xs text-gray-500">Invoice #1252 · Chase</p><span class="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded-full font-medium">Pending</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-semibold text-brand-600">+$8,750.00</p>
+                                        <p class="text-xs text-gray-500">Feb 26</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ROW 2: Cash Flow Forecast Chart -->
+                <div class="card-static reveal">
+                    <div class="p-5 border-b border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <h2 class="font-heading font-bold text-gray-900">Cash Flow Forecast</h2>
+                            <div class="flex items-center gap-2">
+                                <button class="px-2.5 py-1 text-xs bg-brand-50 text-brand-700 rounded-lg font-medium" onclick="setCFRange(30)">30 days</button>
+                                <button class="px-2.5 py-1 text-xs bg-surface-100 text-gray-600 hover:bg-brand-50 hover:text-brand-700 rounded-lg transition-all" onclick="setCFRange(60)">60 days</button>
+                                <button class="px-2.5 py-1 text-xs bg-surface-100 text-gray-600 hover:bg-brand-50 hover:text-brand-700 rounded-lg transition-all" onclick="setCFRange(90)">90 days</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-5">
+                        <div class="relative" style="height:300px;">
+                            <canvas id="cashFlowChart"></canvas>
+                        </div>
+                        <!-- Critical date markers -->
+                        <div class="flex items-center gap-3 mt-4">
+                            <div class="px-3 py-2 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2">
+                                <div class="w-2 h-2 bg-rose-500 rounded-full"></div>
+                                <div><p class="text-xs font-medium text-rose-800">Payroll</p><p class="text-[10px] text-rose-600">Mar 15</p></div>
+                            </div>
+                            <div class="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2">
+                                <div class="w-2 h-2 bg-amber-500 rounded-full"></div>
+                                <div><p class="text-xs font-medium text-amber-800">Rent Due</p><p class="text-[10px] text-amber-600">Mar 5</p></div>
+                            </div>
+                            <div class="px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2">
+                                <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                <div><p class="text-xs font-medium text-blue-800">Tax Payment</p><p class="text-[10px] text-blue-600">Mar 31</p></div>
+                            </div>
+                            <div class="px-3 py-2 bg-surface-50 rounded-xl flex items-center gap-2">
+                                <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                <div><p class="text-xs font-medium text-gray-700">Insurance</p><p class="text-[10px] text-gray-500">Mar 10</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ROW 3: Payments Hub + Receivables -->
+                <div class="grid grid-cols-2 gap-6 reveal">
+
+                    <!-- PAYMENTS HUB -->
+                    <div class="card-static">
+                        <div class="p-5 border-b border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <h2 class="font-heading font-bold text-gray-900">Payments Hub</h2>
+                                <button class="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/></svg></button>
+                            </div>
+                            <!-- Tabs -->
+                            <div class="flex items-center gap-4 mt-3 border-b border-gray-100 -mx-5 px-5">
+                                <button class="tab-btn active pb-2.5 text-sm" data-tab-group="payments" data-tab="scheduled" onclick="switchTab('payments','scheduled')">Scheduled</button>
+                                <button class="tab-btn pb-2.5 text-sm text-gray-500" data-tab-group="payments" data-tab="pending" onclick="switchTab('payments','pending')">Pending</button>
+                                <button class="tab-btn pb-2.5 text-sm text-gray-500" data-tab-group="payments" data-tab="completed" onclick="switchTab('payments','completed')">Completed</button>
+                                <button class="tab-btn pb-2.5 text-sm text-gray-500" data-tab-group="payments" data-tab="failed" onclick="switchTab('payments','failed')">Failed</button>
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <!-- Scheduled -->
+                            <div class="tab-content active" data-tab-content="payments" data-tab-id="scheduled">
+                                <div class="space-y-3">
+                                    <div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></div>
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-900">Office Rent</p>
+                                                <p class="text-xs text-gray-500">Due Mar 5 · <span class="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded-full font-medium">ACH</span></p>
+                                            </div>
+                                        </div>
+                                        <p class="text-sm font-semibold text-gray-900">$3,200.00</p>
+                                    </div>
+                                    <div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg></div>
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-900">Insurance Premium</p>
+                                                <p class="text-xs text-gray-500">Due Mar 10 · <span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] rounded-full font-medium">Wire</span></p>
+                                            </div>
+                                        </div>
+                                        <p class="text-sm font-semibold text-gray-900">$890.00</p>
+                                    </div>
+                                    <div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div>
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-900">Payroll - March</p>
+                                                <p class="text-xs text-gray-500">Due Mar 15 · <span class="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded-full font-medium">ACH</span></p>
+                                            </div>
+                                        </div>
+                                        <p class="text-sm font-semibold text-gray-900">$28,450.00</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Pending -->
+                            <div class="tab-content" data-tab-content="payments" data-tab-id="pending">
+                                <div class="space-y-3">
+                                    <div class="flex items-center justify-between p-3 bg-amber-50/50 border border-amber-100 rounded-xl">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-900">Vendor Invoice #3892</p>
+                                                <p class="text-xs text-amber-600 font-medium">Awaiting manager approval</p>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-sm font-semibold text-gray-900">$6,700.00</p>
+                                            <button class="px-2 py-1 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-lg mt-1">Approve</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Completed -->
+                            <div class="tab-content" data-tab-content="payments" data-tab-id="completed">
+                                <div class="space-y-3">
+                                    <div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-900">Gusto Payroll</p>
+                                                <p class="text-xs text-brand-600 font-medium">Processed Feb 28</p>
+                                            </div>
+                                        </div>
+                                        <p class="text-sm font-semibold text-gray-900">$28,450.00</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Failed -->
+                            <div class="tab-content" data-tab-content="payments" data-tab-id="failed">
+                                <div class="space-y-3">
+                                    <div class="flex items-center justify-between p-3 bg-rose-50/50 border border-rose-100 rounded-xl">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></div>
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-900">Wire Transfer #7721</p>
+                                                <p class="text-xs text-rose-600 font-medium">Insufficient funds</p>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-sm font-semibold text-gray-900">$2,100.00</p>
+                                            <button class="px-2 py-1 bg-rose-100 text-rose-700 text-[10px] font-semibold rounded-lg mt-1">Retry</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button class="mt-3 w-full py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm text-gray-500 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50/50 transition-all flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                New Payment
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- RECEIVABLES -->
+                    <div class="card-static">
+                        <div class="p-5 border-b border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <h2 class="font-heading font-bold text-gray-900">Receivables</h2>
+                                <a href="#" class="text-sm text-brand-600 hover:text-brand-700 font-semibold">View all</a>
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <!-- Aging Buckets -->
+                            <div class="grid grid-cols-4 gap-2 mb-4">
+                                <div class="p-2 bg-brand-50 rounded-xl text-center"><p class="text-lg font-bold text-brand-700">$4.3k</p><p class="text-[10px] text-brand-600 font-medium">Current</p></div>
+                                <div class="p-2 bg-amber-50 rounded-xl text-center"><p class="text-lg font-bold text-amber-700">$8.7k</p><p class="text-[10px] text-amber-600 font-medium">30 days</p></div>
+                                <div class="p-2 bg-orange-50 rounded-xl text-center"><p class="text-lg font-bold text-orange-700">$15.2k</p><p class="text-[10px] text-orange-600 font-medium">60 days</p></div>
+                                <div class="p-2 bg-rose-50 rounded-xl text-center"><p class="text-lg font-bold text-rose-700">$0</p><p class="text-[10px] text-rose-600 font-medium">90+ days</p></div>
+                            </div>
+                            <!-- Invoice List -->
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">Acme Corp</p>
+                                        <p class="text-xs text-gray-500">INV-1247 · $12,500</p>
+                                    </div>
+                                    <span class="px-2.5 py-1 bg-brand-100 text-brand-700 text-xs rounded-full font-medium">Paid</span>
+                                </div>
+                                <div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">Beta LLC</p>
+                                        <p class="text-xs text-gray-500">INV-1252 · $8,750</p>
+                                    </div>
+                                    <span class="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">Viewed</span>
+                                </div>
+                                <div class="flex items-center justify-between p-3 bg-amber-50/50 border border-amber-100 rounded-xl">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">Gamma Inc</p>
+                                        <p class="text-xs text-gray-500">INV-1198 · $15,200 · <span class="text-amber-600 font-medium">60 days overdue</span></p>
+                                    </div>
+                                    <span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">Sent</span>
+                                </div>
+                                <div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">Delta Co</p>
+                                        <p class="text-xs text-gray-500">INV-1265 · $4,300</p>
+                                    </div>
+                                    <span class="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">Sent</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ROW 4: Payables & Compliance -->
+                <div class="card-static reveal">
+                    <div class="p-5 border-b border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <h2 class="font-heading font-bold text-gray-900">Payables & Compliance</h2>
+                            <a href="#" class="text-sm text-brand-600 hover:text-brand-700 font-semibold">View Full Log</a>
+                        </div>
+                    </div>
+                    <div class="p-5">
+                        <div class="grid grid-cols-3 gap-5">
+                            <!-- Bills Inbox -->
+                            <div>
+                                <h3 class="text-sm font-heading font-bold text-gray-700 mb-4">Bills Inbox</h3>
+                                <div class="space-y-4">
+                                    <div class="flex gap-3">
+                                        <div class="flex flex-col items-center"><div class="w-8 h-8 bg-brand-100 rounded-full flex items-center justify-center"><svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div class="w-0.5 h-full bg-gray-200 mt-2"></div></div>
+                                        <div class="pb-4"><p class="text-sm font-medium text-gray-900">AWS Invoice processed</p><p class="text-xs text-gray-500 mt-0.5">AI extracted $1,847.50 · Mar 1, 2:34 PM</p><span class="inline-block mt-2 px-2 py-0.5 bg-brand-100 text-brand-700 text-xs rounded-full font-medium">Complete</span></div>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <div class="flex flex-col items-center"><div class="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center"><svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></div><div class="w-0.5 h-full bg-gray-200 mt-2"></div></div>
+                                        <div class="pb-4"><p class="text-sm font-medium text-gray-900">SaaS vendor bill</p><p class="text-xs text-gray-500 mt-0.5">Needs category assignment · Feb 28</p><span class="inline-block mt-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">Review</span></div>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <div class="flex flex-col items-center"><div class="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center"><svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg></div></div>
+                                        <div class="pb-4"><p class="text-sm font-medium text-gray-900">Overdue: Equipment lease</p><p class="text-xs text-gray-500 mt-0.5">$4,200 past due 12 days · Feb 18</p><span class="inline-block mt-2 px-2 py-0.5 bg-rose-100 text-rose-700 text-xs rounded-full font-medium">Overdue</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Upcoming Payments -->
+                            <div>
+                                <h3 class="text-sm font-heading font-bold text-gray-700 mb-4">Upcoming Payments</h3>
+                                <div class="space-y-3">
+                                    <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl">
+                                        <div class="flex items-center justify-between"><span class="text-sm font-medium text-rose-800">Equipment Lease</span><span class="px-1.5 py-0.5 bg-rose-100 text-rose-700 text-xs rounded-full font-medium">Overdue</span></div>
+                                        <p class="text-xs text-rose-600 mt-1">$4,200.00 · Due Feb 18</p>
+                                    </div>
+                                    <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                                        <div class="flex items-center justify-between"><span class="text-sm font-medium text-amber-800">Office Rent</span><span class="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">3 days</span></div>
+                                        <p class="text-xs text-amber-600 mt-1">$3,200.00 · Due Mar 5</p>
+                                    </div>
+                                    <div class="p-3 bg-surface-50 rounded-xl">
+                                        <div class="flex items-center justify-between"><span class="text-sm font-medium text-gray-700">Insurance</span><span class="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">8 days</span></div>
+                                        <p class="text-xs text-gray-500 mt-1">$890.00 · Due Mar 10</p>
+                                    </div>
+                                    <div class="p-3 bg-surface-50 rounded-xl">
+                                        <div class="flex items-center justify-between"><span class="text-sm font-medium text-gray-700">Payroll</span><span class="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">13 days</span></div>
+                                        <p class="text-xs text-gray-500 mt-1">$28,450.00 · Due Mar 15</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Vendor Health -->
+                            <div>
+                                <h3 class="text-sm font-heading font-bold text-gray-700 mb-4">Vendor Health</h3>
+                                <div class="space-y-3">
+                                    <div class="flex items-center gap-2"><svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-sm text-gray-700">12 vendors paid on time</span></div>
+                                    <div class="flex items-center gap-2"><svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-sm text-gray-700">All receipts attached</span></div>
+                                    <div class="flex items-center gap-2"><svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-sm text-gray-700">2 payments pending</span></div>
+                                    <div class="flex items-center gap-2"><svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><span class="text-sm text-gray-700">1 vendor overdue</span></div>
+                                    <div class="flex items-center gap-2"><svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-sm text-gray-700">Early pay savings: $340</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ RIGHT COLUMN ═══ -->
+            <div class="col-span-4 space-y-6">
+
+                <!-- Ask CloudCFO AI -->
+                <div class="bg-gradient-to-br from-gray-900 to-brand-950 rounded-2xl p-6 text-white sticky top-24 noise-bg relative overflow-hidden">
+                    <div class="relative z-10">
+                        <div class="bg-gradient-to-r from-brand-600 to-brand-500 rounded-xl p-4 mb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                                </div>
+                                <div>
+                                    <h3 class="font-heading font-bold text-white">Ask CloudCFO AI</h3>
+                                    <p class="text-xs text-white/80">Your AI banking assistant</p>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-400 mb-3">More precise questions work better. Try asking:</p>
+                        <div class="space-y-2 mb-4">
+                            <button class="w-full text-left px-3 py-2.5 bg-gray-800/30 hover:bg-gray-700/50 rounded-xl text-sm text-gray-300 transition-all flex items-center gap-2">
+                                <svg class="w-4 h-4 text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                When will my cash drop below $10,000?
+                            </button>
+                            <button class="w-full text-left px-3 py-2.5 bg-gray-800/30 hover:bg-gray-700/50 rounded-xl text-sm text-gray-300 transition-all flex items-center gap-2">
+                                <svg class="w-4 h-4 text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                Show all payments due this week
+                            </button>
+                            <button class="w-full text-left px-3 py-2.5 bg-gray-800/30 hover:bg-gray-700/50 rounded-xl text-sm text-gray-300 transition-all flex items-center gap-2">
+                                <svg class="w-4 h-4 text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                Flag unusual transactions last 30 days
+                            </button>
+                        </div>
+                        <div class="relative mb-3">
+                            <input type="text" placeholder="Ask about your banking..." class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+                            <button class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-brand-600 rounded-lg hover:bg-brand-700 transition-all">
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 text-center">CFO AI can make mistakes. Check our Terms & Conditions.</p>
+                    </div>
+                </div>
+
+                <!-- Reconciliation Status -->
+                <div class="card-static reveal">
+                    <div class="p-5 border-b border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <h2 class="font-heading font-bold text-gray-900">Reconciliation</h2>
+                            <a href="#" class="text-sm text-brand-600 hover:text-brand-700 font-semibold">View all</a>
+                        </div>
+                    </div>
+                    <div class="p-5 space-y-4">
+                        <!-- Discrepancy Alert -->
+                        <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl">
+                            <div class="flex items-start gap-3">
+                                <div class="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0"><svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg></div>
+                                <div class="flex-1">
+                                    <p class="text-sm font-semibold text-amber-800">Discrepancy detected</p>
+                                    <p class="text-xs text-amber-700 mt-1">$2,340 Google Ads charge doesn't match invoice amount ($2,180).</p>
+                                </div>
+                                <button class="px-3 py-1.5 border-2 border-amber-300 text-amber-700 text-xs font-semibold rounded-xl hover:bg-amber-100 transition-all whitespace-nowrap">Review</button>
+                            </div>
+                        </div>
+                        <!-- Chase Reconciliation -->
+                        <div class="p-4 bg-surface-50 rounded-2xl">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center"><svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></div>
+                                    <div><p class="text-sm font-medium text-gray-900">Chase Checking</p><p class="text-xs text-gray-500">Last reconciled 2h ago</p></div>
+                                </div>
+                                <button class="px-3 py-1.5 bg-gradient-to-r from-brand-600 to-brand-700 text-white text-xs font-semibold rounded-xl hover:from-brand-700 hover:to-brand-800 transition-all shadow-sm shadow-brand-600/25">Reconcile</button>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2.5"><div class="bg-gradient-to-r from-brand-400 to-brand-600 h-2.5 rounded-full" style="width:88%"></div></div>
+                            <div class="flex items-center justify-between mt-2"><span class="text-xs text-gray-500">88% Complete</span><span class="text-xs text-amber-600 font-medium">4 items pending</span></div>
+                        </div>
+                        <!-- Mercury -->
+                        <div class="p-4 bg-surface-50 rounded-2xl">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center"><svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></div>
+                                    <div><p class="text-sm font-medium text-gray-900">Mercury Savings</p><p class="text-xs text-gray-500">Last reconciled today</p></div>
+                                </div>
+                                <span class="px-3 py-1.5 bg-brand-100 text-brand-700 text-xs font-semibold rounded-xl">Reconciled</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2.5"><div class="bg-gradient-to-r from-brand-400 to-brand-600 h-2.5 rounded-full" style="width:100%"></div></div>
+                            <div class="flex items-center justify-between mt-2"><span class="text-xs text-brand-600 font-medium">100% Complete</span><span class="text-xs text-gray-500">All matched</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Connected Banks -->
+                <div class="card-static p-5 reveal">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-heading font-bold text-gray-900">Connected Banks</h3>
+                        <a href="#" class="text-sm text-brand-600 hover:text-brand-700 font-semibold">Manage</a>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center"><svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></div>
+                                <div><p class="text-sm font-medium text-gray-900">Chase</p><p class="text-xs text-gray-500">Synced 2 min ago</p></div>
+                            </div>
+                            <span class="flex items-center gap-1.5 px-2.5 py-1 bg-brand-100 text-brand-700 text-xs rounded-full font-medium"><span class="w-1.5 h-1.5 bg-brand-500 rounded-full"></span>Connected</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center"><span class="text-xs font-extrabold text-brand-700">M</span></div>
+                                <div><p class="text-sm font-medium text-gray-900">Mercury</p><p class="text-xs text-gray-500">Synced 5 min ago</p></div>
+                            </div>
+                            <span class="flex items-center gap-1.5 px-2.5 py-1 bg-brand-100 text-brand-700 text-xs rounded-full font-medium"><span class="w-1.5 h-1.5 bg-brand-500 rounded-full"></span>Connected</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center"><span class="text-xs font-extrabold text-rose-600">WF</span></div>
+                                <div><p class="text-sm font-medium text-gray-900">Wells Fargo</p><p class="text-xs text-gray-500">Synced 10 min ago</p></div>
+                            </div>
+                            <span class="flex items-center gap-1.5 px-2.5 py-1 bg-brand-100 text-brand-700 text-xs rounded-full font-medium"><span class="w-1.5 h-1.5 bg-brand-500 rounded-full"></span>Connected</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center"><span class="text-xs font-extrabold text-purple-600">P</span></div>
+                                <div><p class="text-sm font-medium text-gray-900">Plaid</p><p class="text-xs text-gray-500">Bank aggregator</p></div>
+                            </div>
+                            <button class="px-3 py-1.5 border-2 border-gray-200 text-gray-600 text-xs font-medium rounded-xl hover:border-brand-300 hover:text-brand-700 hover:bg-brand-50 transition-all">Connect</button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+                        <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                        <span class="text-xs text-gray-500">Bank-grade encryption · PCI DSS compliant</span>
+                    </div>
+                </div>
+
+                <!-- Spending Breakdown -->
+                <div class="card-static p-5 reveal">
+                    <h3 class="font-heading font-bold text-gray-900 mb-4">Spending Breakdown</h3>
+                    <div class="relative" style="height:200px;">
+                        <canvas id="spendingDonut"></canvas>
+                    </div>
+                    <div class="mt-4 space-y-2">
+                        <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-2"><span class="w-3 h-3 bg-brand-500 rounded-full"></span><span class="text-gray-600">Payroll</span></div><span class="font-medium text-gray-900">42.0%</span></div>
+                        <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-2"><span class="w-3 h-3 bg-blue-500 rounded-full"></span><span class="text-gray-600">Rent & Utilities</span></div><span class="font-medium text-gray-900">18.0%</span></div>
+                        <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-2"><span class="w-3 h-3 bg-amber-500 rounded-full"></span><span class="text-gray-600">Software & SaaS</span></div><span class="font-medium text-gray-900">15.0%</span></div>
+                        <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-2"><span class="w-3 h-3 bg-purple-500 rounded-full"></span><span class="text-gray-600">Marketing</span></div><span class="font-medium text-gray-900">12.0%</span></div>
+                        <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-2"><span class="w-3 h-3 bg-gray-400 rounded-full"></span><span class="text-gray-600">Other</span></div><span class="font-medium text-gray-900">13.0%</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ═══ SCRIPTS ═══ -->
+    <script>
+        // Header scroll shadow
+        window.addEventListener('scroll', () => {
+            const header = document.getElementById('header');
+            header.classList.toggle('shadow-sm', window.scrollY > 50);
+        });
+
+        // Scroll reveals
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+        }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+        // Toggle accounts
+        function toggleAccount(id) {
+            const children = document.getElementById(id + '-children');
+            const chevron = document.getElementById(id + '-chevron');
+            if (children.classList.contains('hidden')) {
+                children.classList.remove('hidden');
+                chevron.style.transform = 'rotate(180deg)';
+            } else {
+                children.classList.add('hidden');
+                chevron.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // Tab switching
+        function switchTab(group, tabId) {
+            // Deactivate all tabs in group
+            document.querySelectorAll(`[data-tab-group="${group}"]`).forEach(btn => {
+                btn.classList.remove('active');
+                btn.classList.add('text-gray-500');
+            });
+            // Activate selected tab
+            const activeBtn = document.querySelector(`[data-tab-group="${group}"][data-tab="${tabId}"]`);
+            activeBtn.classList.add('active');
+            activeBtn.classList.remove('text-gray-500');
+            // Hide all tab contents
+            document.querySelectorAll(`[data-tab-content="${group}"]`).forEach(content => {
+                content.classList.remove('active');
+            });
+            // Show selected tab content
+            document.querySelector(`[data-tab-content="${group}"][data-tab-id="${tabId}"]`).classList.add('active');
+        }
+
+        // Cash flow range toggle
+        function setCFRange(days) {
+            const btns = document.querySelectorAll('.card-static .flex button[onclick^="setCFRange"]');
+            // This is handled by visual toggle only in this demo
+            event.target.closest('.flex').querySelectorAll('button').forEach(b => {
+                b.className = 'px-2.5 py-1 text-xs bg-surface-100 text-gray-600 hover:bg-brand-50 hover:text-brand-700 rounded-lg transition-all';
+            });
+            event.target.className = 'px-2.5 py-1 text-xs bg-brand-50 text-brand-700 rounded-lg font-medium';
+        }
+
+        // ═══ SPARKLINES ═══
+        function createSparkline(canvasId, data, color, fill = false) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map((_, i) => i),
+                    datasets: [{ data, borderColor: color, borderWidth: 2, fill, backgroundColor: fill ? color + '20' : 'transparent', tension: 0.4, pointRadius: 0 }]
+                },
+                options: { responsive: false, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+            });
+        }
+        createSparkline('cashSparkline', [52,54,53,58,62,60,65,68,72,75], '#22c55e');
+        createSparkline('arSparkline', [30,28,32,35,33,38,40,42,45,48], '#3b82f6');
+        createSparkline('apSparkline', [25,27,24,22,23,21,20,19,18,17], '#f43f5e');
+        createSparkline('cfSparkline', [10,12,8,15,18,14,20,22,18,25], '#22c55e', true);
+
+        // ═══ CASH FLOW FORECAST CHART ═══
+        const cfCtx = document.getElementById('cashFlowChart').getContext('2d');
+        const gradientGreen = cfCtx.createLinearGradient(0, 0, 0, 300);
+        gradientGreen.addColorStop(0, 'rgba(34, 197, 94, 0.15)');
+        gradientGreen.addColorStop(1, 'rgba(34, 197, 94, 0.01)');
+        const gradientRose = cfCtx.createLinearGradient(0, 0, 0, 300);
+        gradientRose.addColorStop(0, 'rgba(244, 63, 94, 0.12)');
+        gradientRose.addColorStop(1, 'rgba(244, 63, 94, 0.01)');
+
+        new Chart(cfCtx, {
+            type: 'line',
+            data: {
+                labels: ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12'],
+                datasets: [
+                    {
+                        label: 'Inflow',
+                        data: [42000, 38000, 45000, 52000, 48000, 55000, 47000, 61000, 53000, 58000, 64000, 60000],
+                        borderColor: '#22c55e',
+                        borderWidth: 2,
+                        backgroundColor: gradientGreen,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        pointHoverBackgroundColor: '#22c55e',
+                    },
+                    {
+                        label: 'Outflow',
+                        data: [35000, 32000, 41000, 38000, 44000, 36000, 42000, 39000, 45000, 40000, 43000, 38000],
+                        borderColor: '#f43f5e',
+                        borderWidth: 2,
+                        backgroundColor: gradientRose,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        pointHoverBackgroundColor: '#f43f5e',
+                    },
+                    {
+                        label: 'Net',
+                        data: [7000, 6000, 4000, 14000, 4000, 19000, 5000, 22000, 8000, 18000, 21000, 22000],
+                        borderColor: '#3b82f6',
+                        borderWidth: 2,
+                        borderDash: [6, 4],
+                        fill: false,
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#3b82f6',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { usePointStyle: true, padding: 20, font: { family: 'Inter', size: 12 } }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleFont: { family: 'Inter' },
+                        bodyFont: { family: 'Inter' },
+                        callbacks: {
+                            label: function(ctx) {
+                                return ctx.dataset.label + ': $' + ctx.parsed.y.toLocaleString();
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: 'Inter', size: 11 }, color: '#9ca3af' }
+                    },
+                    y: {
+                        grid: { color: '#f1f5f9' },
+                        ticks: {
+                            font: { family: 'Inter', size: 11 },
+                            color: '#9ca3af',
+                            callback: function(value) { return '$' + (value / 1000) + 'k'; }
+                        }
+                    }
+                }
+            }
+        });
+
+        // ═══ SPENDING DONUT ═══
+        const spendCtx = document.getElementById('spendingDonut').getContext('2d');
+        new Chart(spendCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Payroll', 'Rent & Utilities', 'Software & SaaS', 'Marketing', 'Other'],
+                datasets: [{
+                    data: [42, 18, 15, 12, 13],
+                    backgroundColor: ['#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#9ca3af'],
+                    borderWidth: 0,
+                    cutout: '70%'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+    </script>
+</body>
+</html>
